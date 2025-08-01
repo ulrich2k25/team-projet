@@ -1,67 +1,91 @@
 package myteam;
 
 import java.awt.Color;
+import java.awt.geom.Point2D;
 
+import robocode.HitByBulletEvent;
+import robocode.HitWallEvent;
 import robocode.MessageEvent;
+import robocode.ScannedRobotEvent;
 import robocode.TeamRobot;
+import robocode.util.Utils;
 
 public class SniperBot extends TeamRobot {
 
-	public void run() {
-		setBodyColor(Color.RED);
-		setGunColor(Color.BLACK);
-		setRadarColor(Color.YELLOW);
+	private Point2D.Double targetLocation = null;
 
-		goToCenter();
+	@Override
+	public void run() {
+		setColors(Color.pink, Color.white, Color.red);
 
 		while (true) {
-			turnRadarRight(360); // Cherche les ennemis
-			dodge(); // Bouge un peu pour éviter d’être touché
+			if (targetLocation != null) {
+				moveToTarget(targetLocation);
+				targetLocation = null;
+			} else {
+				patrol();
+			}
+
+			setTurnGunRight(360); // Constant scanning
+			execute(); // Ensure the actions are executed
 		}
 	}
 
-	private void goToCenter() {
-		double centerX = getBattleFieldWidth() / 2;
-		double centerY = getBattleFieldHeight() / 2;
-		goTo(centerX, centerY);
-	}
-
-	private void goTo(double x, double y) {
-		double dx = x - getX();
-		double dy = y - getY();
-		double angle = Math.toDegrees(Math.atan2(dx, dy)) - getHeading();
-		turnRight(normalizeBearing(angle));
-		ahead(Math.hypot(dx, dy));
-	}
-
-	private double normalizeBearing(double angle) {
-		while (angle > 180)
-			angle -= 360;
-		while (angle < -180)
-			angle += 360;
-		return angle;
-	}
-
-	private void dodge() {
-		setTurnRight(10);
-		ahead(50);
-		back(50);
-	}
-
-	public void onMessageReceived(MessageEvent e) {
-		if (e.getMessage() instanceof double[]) {
-			double[] coords = (double[]) e.getMessage();
-			double enemyX = coords[0];
-			double enemyY = coords[1];
-
-			double dx = enemyX - getX();
-			double dy = enemyY - getY();
-			double angleToEnemy = Math.toDegrees(Math.atan2(dx, dy));
-
-			double gunTurn = normalizeBearing(angleToEnemy - getGunHeading());
-			turnGunRight(gunTurn);
-			fire(2); // Tirs précis
-			out.println("Firing at (" + enemyX + ", " + enemyY + ")");
+	@Override
+	public void onMessageReceived(MessageEvent event) {
+		if (event.getMessage() instanceof Point2D.Double) {
+			targetLocation = (Point2D.Double) event.getMessage();
 		}
+	}
+
+	@Override
+	public void onScannedRobot(ScannedRobotEvent event) {
+		if (isTeammate(event.getName())) {
+			return; // Ignore teammates
+		}
+
+		double absoluteBearing = getHeadingRadians() + event.getBearingRadians();
+
+		// Predictive targeting
+		double bulletPower = Math.min(3.0, getEnergy());
+		double bulletSpeed = 20 - 3 * bulletPower;
+		long time = (long) (event.getDistance() / bulletSpeed);
+		double futureX = getX() + event.getVelocity() * time * Math.sin(event.getHeadingRadians());
+		double futureY = getY() + event.getVelocity() * time * Math.cos(event.getHeadingRadians());
+		double futureBearing = Utils.normalAbsoluteAngle(Math.atan2(futureX - getX(), futureY - getY()));
+
+		setTurnGunRightRadians(Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians()));
+		fire(bulletPower);
+		execute();
+	}
+
+	@Override
+	public void onHitByBullet(HitByBulletEvent event) {
+		setBack(50); // Move back when hit
+		setTurnRight(45); // Change direction to avoid further hits
+		execute(); // Ensure the actions are executed
+	}
+
+	@Override
+	public void onHitWall(HitWallEvent event) {
+		setBack(20); // Move away from wall
+		setTurnRight(45); // Change direction
+		execute(); // Ensure the actions are executed
+	}
+
+	private void moveToTarget(Point2D.Double target) {
+		double dx = target.getX() - getX();
+		double dy = target.getY() - getY();
+		double angleToTarget = Utils.normalAbsoluteAngle(Math.atan2(dx, dy));
+
+		setTurnRightRadians(Utils.normalRelativeAngle(angleToTarget - getHeadingRadians()));
+		setAhead(Math.hypot(dx, dy));
+		execute(); // Ensure the actions are executed
+	}
+
+	private void patrol() {
+		setAhead(100);
+		setTurnRight(90);
+		execute(); // Ensure the actions are executed
 	}
 }

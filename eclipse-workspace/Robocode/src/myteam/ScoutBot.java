@@ -1,44 +1,78 @@
 package myteam;
 
 import java.awt.Color;
+import java.awt.geom.Point2D;
 import java.io.IOException;
 
+import robocode.HitByBulletEvent;
+import robocode.HitWallEvent;
 import robocode.ScannedRobotEvent;
 import robocode.TeamRobot;
+import robocode.util.Utils;
 
 public class ScoutBot extends TeamRobot {
 
+	@Override
 	public void run() {
-		setBodyColor(Color.BLUE);
-		setGunColor(Color.WHITE);
-		setRadarColor(Color.CYAN);
+		setColors(Color.blue, Color.white, Color.red);
 
 		while (true) {
-			setTurnRadarRight(360); // Scan en continu
-			ahead(200); // Avance pour explorer
-			turnRight(90); // Tourne pour changer de direction
-			avoidWalls(); // Évite les murs
+			setTurnGunRight(360); // Scan for enemies
+			execute();
+			ahead(100);
+			execute();
+			setTurnRight(45);
+			execute();
+			ahead(100);
+			execute();
+			setTurnLeft(45);
+			execute();
 		}
 	}
 
-	private void avoidWalls() {
-		if (getX() <= 50 || getY() <= 50 || getX() >= getBattleFieldWidth() - 50
-				|| getY() >= getBattleFieldHeight() - 50) {
-			turnRight(90); // Si trop proche d’un mur, tourne
+	@Override
+	public void onScannedRobot(ScannedRobotEvent event) {
+		if (isTeammate(event.getName())) {
+			return; // Ignore teammates
+		}
+
+		double absoluteBearing = getHeadingRadians() + event.getBearingRadians();
+		double enemyX = getX() + event.getDistance() * Math.sin(absoluteBearing);
+		double enemyY = getY() + event.getDistance() * Math.cos(absoluteBearing);
+		Point2D.Double enemyPosition = new Point2D.Double(enemyX, enemyY);
+
+		// Predictive targeting
+		double bulletPower = Math.min(3.0, getEnergy());
+		double bulletSpeed = 20 - 3 * bulletPower;
+
+		long time = (long) (event.getDistance() / bulletSpeed);
+		double futureX = enemyX + event.getVelocity() * time * Math.sin(event.getHeadingRadians());
+		double futureY = enemyY + event.getVelocity() * time * Math.cos(event.getHeadingRadians());
+		double futureBearing = Utils.normalAbsoluteAngle(Math.atan2(futureX - getX(), futureY - getY()));
+
+		setTurnGunRightRadians(Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians()));
+		fire(bulletPower);
+		execute();
+
+		// Send enemy position to teammate
+		try {
+			broadcastMessage(enemyPosition);
+		} catch (IOException e) {
+			out.println("Unable to send position: " + e.getMessage());
 		}
 	}
 
-	public void onScannedRobot(ScannedRobotEvent e) {
-		if (!isTeammate(e.getName())) {
-			double enemyX = getX() + e.getDistance() * Math.sin(Math.toRadians(getHeading() + e.getBearing()));
-			double enemyY = getY() + e.getDistance() * Math.cos(Math.toRadians(getHeading() + e.getBearing()));
+	@Override
+	public void onHitByBullet(HitByBulletEvent event) {
+		setBack(50); // Move back when hit
+		setTurnRight(45); // Change direction to avoid further hits
+		execute();
+	}
 
-			try {
-				sendMessage("SniperBot", new double[] { enemyX, enemyY });
-				out.println("Enemy at (" + enemyX + ", " + enemyY + ") sent to SniperBot");
-			} catch (IOException ex) {
-				out.println("Error sending message: " + ex);
-			}
-		}
+	@Override
+	public void onHitWall(HitWallEvent event) {
+		setBack(20); // Move away from wall
+		setTurnRight(45); // Change direction
+		execute();
 	}
 }
