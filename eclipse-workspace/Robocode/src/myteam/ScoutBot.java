@@ -50,9 +50,14 @@ public class ScoutBot extends TeamRobot {
 		double futureY = enemyY + event.getVelocity() * time * Math.cos(event.getHeadingRadians());
 		double futureBearing = Utils.normalAbsoluteAngle(Math.atan2(futureX - getX(), futureY - getY()));
 
-		setTurnGunRightRadians(Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians()));
-		fire(bulletPower);
+		double gunTurn = Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians());
+		setTurnGunRightRadians(gunTurn);
 		execute();
+
+		// ✅ Tire seulement si le canon est bien aligné
+		if (Math.abs(getGunTurnRemaining()) < Math.toRadians(5)) {
+			fire(bulletPower);
+		}
 
 		// Send enemy position to teammate
 		try {

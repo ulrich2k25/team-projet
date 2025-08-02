@@ -27,7 +27,7 @@ public class SniperBot extends TeamRobot {
 			}
 
 			setTurnGunRight(360); // Constant scanning
-			execute(); // Ensure the actions are executed
+			execute();
 		}
 	}
 
@@ -54,23 +54,28 @@ public class SniperBot extends TeamRobot {
 		double futureY = getY() + event.getVelocity() * time * Math.cos(event.getHeadingRadians());
 		double futureBearing = Utils.normalAbsoluteAngle(Math.atan2(futureX - getX(), futureY - getY()));
 
-		setTurnGunRightRadians(Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians()));
-		fire(bulletPower);
+		double gunTurn = Utils.normalRelativeAngle(futureBearing - getGunHeadingRadians());
+		setTurnGunRightRadians(gunTurn);
 		execute();
+
+		// ✅ Tir uniquement si le canon est bien orienté
+		if (Math.abs(getGunTurnRemaining()) < Math.toRadians(5)) {
+			fire(bulletPower);
+		}
 	}
 
 	@Override
 	public void onHitByBullet(HitByBulletEvent event) {
-		setBack(50); // Move back when hit
-		setTurnRight(45); // Change direction to avoid further hits
-		execute(); // Ensure the actions are executed
+		setBack(50);
+		setTurnRight(45);
+		execute();
 	}
 
 	@Override
 	public void onHitWall(HitWallEvent event) {
-		setBack(20); // Move away from wall
-		setTurnRight(45); // Change direction
-		execute(); // Ensure the actions are executed
+		setBack(20);
+		setTurnRight(45);
+		execute();
 	}
 
 	private void moveToTarget(Point2D.Double target) {
@@ -80,12 +85,12 @@ public class SniperBot extends TeamRobot {
 
 		setTurnRightRadians(Utils.normalRelativeAngle(angleToTarget - getHeadingRadians()));
 		setAhead(Math.hypot(dx, dy));
-		execute(); // Ensure the actions are executed
+		execute();
 	}
 
 	private void patrol() {
 		setAhead(100);
 		setTurnRight(90);
-		execute(); // Ensure the actions are executed
+		execute();
 	}
 }
