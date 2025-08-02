@@ -1,0 +1,3 @@
+team.name=EnemyTeam
+team.description=Team Enemy Bots
+team.members=enemyteam.EnemyScoutBot,enemyteam.EnemySniperBot
